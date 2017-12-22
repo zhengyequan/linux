@@ -1,0 +1,99 @@
+centOS7开机自启动脚本
+
+1、在/etc/init.d/下新建可执行文件 test 
+ [root@...]#cd /etc/init.d/                                                                                              
+ [root@...]#touch test                                                                                                  
+
+ 2、给test加上可执行权限
+[root@...]#chmod +x test                                                                                            
+
+ 3、建立软链接
+[root@unionpay init.d]#ln -s ../init.d/test /etc/rc5.d/S99test                                         
+
+4、此时上面三步做好了，就可以在/etc/init.d/test文件里写脚本了，我这里以开机启动activeMQ、memcached、tomcat为例：
+activeMQ路径：/root/deploy/activemq/
+memcached路径：/usr/local/memcached/
+tomcat路径： /root/deploy/tomcat/
+jdk路径：/usr/java/jdk1.8.0_73/
+
+脚本内容：
+#!/bin/bash
+start() {
+    # 加上PATH是因为机器启动时，如果jdk变量路径如果还没被指定，系统会找不到jre
+    # 而导致activeMQ和tomcat启动失败
+    
+    PATH=$PATH:/usr/java/jdk1.8.0_73/bin
+    
+    echo 'start activemq...'
+    cd /root/deploy/activemq/bin
+    nohup ./activemq start > /root/deploy/logfile 2>&1 &
+    sleep 1
+    echo 'start activemq success'
+
+    echo 'start memecached...'
+    /usr/local/memcached/bin/memcached -d -u root -m 512 -p 11211
+    /usr/local/memcached/bin/memcached -d -u root -m 512 -p 11212
+    sleep 1
+    echo 'start memecached success'
+
+    echo 'start tomcat...'
+    cd /root/deploy/tomcat/bin
+    nohup ./startup.sh start > /root/deploy/logfile 2>&1 &
+    sleep 1
+    echo 'start tomcat success'
+}
+
+stop() {
+    TOMCAT_PID=`ps -ef| grep tomcat | grep -v grep | awk '{print $2}'`
+    if [ "$TOMCAT_PID" != '' ]; then
+        kill -9 $TOMCAT_PID
+    fi
+
+    ACTIVEMQ_PID=`ps -ef| grep activemq | grep -v grep | awk '{print $2}'`
+    if [ "$ACTIVEMQ_PID" != '' ]; then
+        kill -9 $ACTIVEMQ_PID
+    fi
+
+    MEMCACHED_PID=`ps -ef | grep memcached | grep -v grep | awk '{print $2}'`
+    if [ "$MEMCACHED_PID" != '' ]; then
+        kill -9 $MEMCACHED_PID
+    fi
+
+    rm -f /root/deploy/logs/*
+    echo 'all servers stoped'
+}
+
+case "$1" in
+    start)
+        start
+    ;;
+
+    stop)
+        stop
+    ;;
+
+    restart)
+        stop
+        sleep 2
+        start
+    ;;
+
+    *)
+        exit 1
+    ;;
+esac
+
+
+5、重启机器试一下吧！ 
+查询进程是否启动
+[root@...]# ps -ef | grep active                                                                                      
+[root@...]# ps -ef | grep memcached                                                                            
+[root@...]# ps -ef | grep tomcat                                                                                     
+
+
+
+
+
+
+
+
